@@ -76,7 +76,13 @@ config_setting(
     visibility = ["//visibility:public"],
 )
 
-# TODO: Windows
+config_setting(
+    name = "is_msvc",
+    flag_values = {
+        ":platform_libc": "msvc",
+    },
+    visibility = ["//visibility:public"],
+)
 
 generate(
     visibility = ["//visibility:public"],

@@ -214,7 +214,32 @@ def generate_musllinux(visibility):
 
 # buildifier: disable=unnamed-macro
 # buildifier: disable=function-docstring
+def generate_windows(visibility):
+    # https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/#basic-platform-tags
+    # Common wheel tags for Windows are: win32, win_amd64, win_arm64
+    platform_cpus = {
+        "win32": "x86_32",
+        "win_amd64": "x86_64",
+        "win_arm64": "aarch64",
+    }
+
+    for platform_tag, cpu in platform_cpus.items():
+        native.config_setting(
+            name = platform_tag,
+            flag_values = {
+                ":platform_libc": "msvc",
+            },
+            constraint_values = [
+                "@platforms//os:windows",
+                "@platforms//cpu:{}".format(cpu),
+            ],
+            visibility = visibility,
+        )
+
+# buildifier: disable=unnamed-macro
+# buildifier: disable=function-docstring
 def generate(visibility):
     generate_macos(visibility = visibility)
     generate_manylinux(visibility = visibility)
     generate_musllinux(visibility = visibility)
+    generate_windows(visibility = visibility)
