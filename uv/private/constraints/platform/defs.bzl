@@ -4,6 +4,13 @@ Helpers & constants.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
+def select_not_windows():
+    """Helper for selecting on not being windows."""
+    return select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    })
+
 def supported_platform(platform_tag):
     """Predicate.
 

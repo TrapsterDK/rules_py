@@ -11,6 +11,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const PYVENV: &str = "pyvenv.cfg";
+#[cfg(windows)]
+const PATH_SEP: &str = ";";
+#[cfg(not(windows))]
+const PATH_SEP: &str = ":";
 
 fn find_venv_root(exec_name: impl AsRef<Path>) -> miette::Result<(PathBuf, PathBuf)> {
     let exec_name = exec_name.as_ref().to_owned();
@@ -350,10 +354,9 @@ fn main() -> miette::Result<()> {
         .env("VIRTUAL_ENV", &venv_root);
 
     let venv_bin = (&venv_root).join("bin");
-    // TODO(arrdem|myrrlyn): PATHSEP is : on Unix and ; on Windows
     if let Ok(path) = env::var("PATH") {
         let mut path_segments = path
-            .split(":") // break into individual entries
+            .split(PATH_SEP) // break into individual entries
             .filter(|&p| !p.is_empty()) // skip over `::`, which is possible
             .map(ToOwned::to_owned) // we're dropping the big string, so own the fragments
             .collect::<Vec<_>>(); // and save them.
@@ -367,7 +370,7 @@ fn main() -> miette::Result<()> {
             // then move venv_bin to the front of PATH
             path_segments.rotate_right(1);
             // and write into the child environment. this avoids an empty PATH causing us to write `{venv_bin}:` with a trailing colon
-            cmd.env("PATH", path_segments.join(":"));
+            cmd.env("PATH", path_segments.join(PATH_SEP));
         }
     }
 

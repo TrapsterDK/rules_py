@@ -1,5 +1,6 @@
 load("@gazelle//:def.bzl", "gazelle")
 load("@rules_python//python/pip_install:requirements.bzl", "compile_pip_requirements")
+load("//uv/private/constraints/platform:defs.bzl", "select_not_windows")
 
 # buildifier: disable=bzl-visibility
 load("//uv/private/manifest:defs.bzl", "gazelle_python_manifest")
@@ -9,11 +10,6 @@ load("//uv/private/manifest:defs.bzl", "gazelle_python_manifest")
 # gazelle:exclude py/tests/
 # gazelle:exclude examples/django
 # gazelle:map_kind bzl_library bzl_library @bazel_lib//:bzl_library.bzl
-
-not_windows = select({
-    "@platforms//os:windows": ["@platforms//:incompatible"],
-    "//conditions:default": [],
-})
 
 gazelle_python_manifest(
     name = "gazelle_python_manifest",
@@ -26,7 +22,7 @@ gazelle_python_manifest(
 gazelle(
     name = "gazelle",
     gazelle = "@multitool//tools/gazelle",
-    target_compatible_with = not_windows,
+    target_compatible_with = select_not_windows(),
 )
 
 compile_pip_requirements(
