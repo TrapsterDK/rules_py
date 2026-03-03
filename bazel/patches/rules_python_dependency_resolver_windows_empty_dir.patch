@@ -1,0 +1,16 @@
+diff --git a/python/private/pypi/dependency_resolver/dependency_resolver.py b/python/private/pypi/dependency_resolver/dependency_resolver.py
+index 4373f8a..f433fc5 100644
+--- a/python/private/pypi/dependency_resolver/dependency_resolver.py
++++ b/python/private/pypi/dependency_resolver/dependency_resolver.py
+@@ -173,7 +173,10 @@ def main(
+ 
+         # Make sure the output file for pip_compile exists. It won't if we are on Windows and --enable_runfiles is not set.
+         if not os.path.exists(requirements_file_relative):
+-            os.makedirs(os.path.dirname(requirements_file_relative), exist_ok=True)
++            output_dir = os.path.dirname(requirements_file_relative)
++            # requirements_file_relative can be a root-level file like "requirements.txt".
++            if output_dir:
++                os.makedirs(output_dir, exist_ok=True)
+             shutil.copy(resolved_requirements_file, requirements_file_relative)
+ 
+         if "BUILD_WORKSPACE_DIRECTORY" in os.environ:
