@@ -55,7 +55,9 @@ def _platform(rctx):
         else:
             fail("Unknown libc from ldd --version %r" % res.stdout)
 
-    # TODO: Windows
+    elif os == "windows":
+        return "msvc", "0"
+
     # TODO: Other
 
     fail("Unsupported platform {}".format(os))

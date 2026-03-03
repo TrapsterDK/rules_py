@@ -38,6 +38,8 @@ use_repo(
     "toml2json_aarch64_osx_libsystem",
     "toml2json_x86_64_linux_gnu",
     "toml2json_x86_64_osx_libsystem",
+    "toml2json_x86_64_windows_msvc",
+    "toml2json_aarch64_windows_msvc",
 )
 
 host = use_extension("//uv/private/host:extension.bzl", "host_platform")
