@@ -11,6 +11,8 @@ TARGET_TRIPLES = [
     ("aarch64_unknown_linux_musl", "linux_aarch64"),
     ("x86_64_apple_darwin", "macos_x86_64"),
     ("aarch64_apple_darwin", "macos_aarch64"),
+    ("x86_64_pc_windows_msvc", "windows_x86_64"),
+    ("aarch64_pc_windows_msvc", "windows_aarch64"),
 ]
 
 # Map a Rust naming scheme to a custom name.

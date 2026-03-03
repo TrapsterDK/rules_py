@@ -54,17 +54,14 @@ use_repo(tel, "aspect_tools_telemetry_report")
 # Dev deps are the remainder of the file
 
 # LLVM configuration
-bazel_dep(name = "toolchains_llvm_bootstrapped", version = "0.2.5", dev_dependency = IS_RELEASE)
-archive_override(
-    module_name = "toolchains_llvm_bootstrapped",
-    integrity = "sha256-+nddimV34BYO8YExiKLYG2kMoA2Sv+5ZoMRPQLJxNfE=",
-    patch_strip = 1,
-    patches = [
-        "//bazel/patches:llvm_darwin_sysroot.patch",
-    ],
-    strip_prefix = "toolchains_llvm_bootstrapped-121c8419394e76b5652c161369743c564799b2e3",
-    urls = ["https://github.com/cerisier/toolchains_llvm_bootstrapped/archive/121c8419394e76b5652c161369743c564799b2e3/master.tar.gz"],
-)
+bazel_dep(name = "toolchains_llvm_bootstrapped", version = "0.5.9", dev_dependency = IS_RELEASE)
+# single_version_override(
+#     module_name = "toolchains_llvm_bootstrapped",
+#     patch_strip = 1,
+#     patches = [
+#         "//bazel/patches:llvm_darwin_sysroot.patch",
+#     ],
+# )
 
 register_toolchains(
     "@toolchains_llvm_bootstrapped//toolchain:all",
@@ -86,6 +83,8 @@ rust.toolchain(
         "x86_64-apple-darwin",
         "aarch64-unknown-linux-musl",
         "x86_64-unknown-linux-musl",
+        "aarch64-pc-windows-msvc",
+        "x86_64-pc-windows-msvc",
     ],
     versions = ["1.88.0"],
 )
@@ -123,6 +122,8 @@ crate.from_cargo(
         "aarch64-unknown-linux-musl",
         "x86_64-apple-darwin",
         "x86_64-unknown-linux-musl",
+        "aarch64-pc-windows-msvc",
+        "x86_64-pc-windows-msvc",
     ],
 )
 crate.annotation(

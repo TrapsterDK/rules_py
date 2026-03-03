@@ -44,6 +44,7 @@ def _select_key(pair):
         platform = (int(platform[1]), int(platform[2]))
     else:
         # Really case of windows; potential BSD issues?
+        # Windows has no versions
         platform = (0, 0)
 
     return ((py_major, py_minor), platform, abi)
