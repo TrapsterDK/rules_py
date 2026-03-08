@@ -70,7 +70,8 @@ TOOLCHAIN_PLATFORMS = {
 }
 
 def _toolchain_impl(ctx):
-    binary = ctx.file.bin
+    wrapped_default_info = ctx.attr.bin[DefaultInfo]
+    binary = ctx.executable.bin
 
     # Make a variable available in places like genrules.
     # See https://docs.bazel.build/versions/main/be/make-variables.html#custom_variables
@@ -79,7 +80,7 @@ def _toolchain_impl(ctx):
     })
     default_info = DefaultInfo(
         files = depset([binary]),
-        runfiles = ctx.runfiles(files = [binary]),
+        runfiles = wrapped_default_info.default_runfiles,
     )
 
     # Export all the providers inside our ToolchainInfo
@@ -97,7 +98,8 @@ py_tool_toolchain = rule(
     attrs = {
         "bin": attr.label(
             mandatory = True,
-            allow_single_file = True,
+            executable = True,
+            cfg = "exec",
         ),
         "template_var": attr.string(
             mandatory = True,

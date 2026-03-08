@@ -1,0 +1,18 @@
+load(":defs.bzl", "windows_py_tool")
+
+package(default_visibility = ["//visibility:public"])
+
+windows_py_tool(
+    name = "unpack",
+    main = "unpack.py",
+)
+
+windows_py_tool(
+    name = "venv",
+    main = "venv.py",
+)
+
+windows_py_tool(
+    name = "shim",
+    main = "shim_main.py",
+)

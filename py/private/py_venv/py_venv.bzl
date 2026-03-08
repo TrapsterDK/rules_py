@@ -19,14 +19,12 @@ def _interpreter_flags(ctx):
 
     args = py_toolchain.flags + ctx.attr.interpreter_options
 
-    if hasattr(ctx.file, "main"):
-        args.append(
-            "\"$(rlocation {})\"".format(to_rlocation_path(ctx, ctx.file.main)),
-        )
-
     args = [it for it in args if it not in ["-I"]]
 
     return args
+
+def _declare_executable(ctx, is_windows):
+    return ctx.actions.declare_file(ctx.attr.name + ".bat" if is_windows else ctx.attr.name)
 
 # FIXME: This is derived directly from the py_binary.bzl rule and should really
 # be a layer on top of it if we can figure out flowing the data around. This is
@@ -106,7 +104,6 @@ def _py_venv_base_impl(ctx):
             # user tries to consume a `py_venv_binary` across repo boundaries
             # which could cause repo mapping to become relevant.
             "--repo=" + (ctx.label.repo_name or ctx.workspace_name),
-            "--python=" + (to_rlocation_path(ctx, py_toolchain.python) if py_toolchain.runfiles_interpreter else py_toolchain.python.path),
             "--pth-file=" + site_packages_pth_file.path,
             "--env-file=" + env_file.path,
             "--bin-dir=" + ctx.bin_dir.path,
@@ -132,6 +129,7 @@ def _py_venv_base_impl(ctx):
                 env_file,
                 venv_tool,
             ] + py_toolchain.files.to_list()),
+            ctx.attr._venv[DefaultInfo].default_runfiles,
             py_shim.default_info.default_runfiles,
         ]).files,
         outputs = [
@@ -156,17 +154,20 @@ def _py_venv_rule_impl(ctx):
     """
 
     venv_dir, rfs = _py_venv_base_impl(ctx)
+    is_windows = ctx.target_platform_has_constraint(ctx.attr._windows_constraint[platform_common.ConstraintValueInfo])
+    executable = _declare_executable(ctx, is_windows)
 
     # Now we can generate an entrypoint script wrapping $VENV/bin/python
     ctx.actions.expand_template(
-        template = ctx.file._run_tmpl,  # FIXME: Should always be single file
-        output = ctx.outputs.executable,
+        template = ctx.file._run_tmpl_windows if is_windows else ctx.file._run_tmpl,  # FIXME: Should always be single file
+        output = executable,
         substitutions = {
             "{{BASH_RLOCATION_FN}}": BASH_RLOCATION_FUNCTION.strip(),
             "{{INTERPRETER_FLAGS}}": " ".join(_interpreter_flags(ctx)),
             "{{ENTRYPOINT}}": "${VIRTUAL_ENV}/bin/python",
-            "{{VENV}}": to_rlocation_path(ctx, venv_dir),
+            "{{VENV}}": venv_dir.basename if is_windows else to_rlocation_path(ctx, venv_dir),
             "{{DEBUG}}": str(ctx.attr.debug).lower(),
+            "{{MAIN}}": "",
         },
         is_executable = True,
     )
@@ -176,10 +177,10 @@ def _py_venv_rule_impl(ctx):
     return [
         DefaultInfo(
             files = depset([
-                ctx.outputs.executable,
+                executable,
                 venv_dir,
             ]),
-            executable = ctx.outputs.executable,
+            executable = executable,
             runfiles = rfs.merge(
                 ctx.runfiles(files = [venv_dir]),
             ),
@@ -215,16 +216,19 @@ def _py_venv_binary_impl(ctx):
 
     venv_dir, venv_rfs = _py_venv_base_impl(ctx)
     rfs = rfs.merge(venv_rfs)
+    is_windows = ctx.target_platform_has_constraint(ctx.attr._windows_constraint[platform_common.ConstraintValueInfo])
+    executable = _declare_executable(ctx, is_windows)
 
     # Now we can generate an entrypoint script wrapping $VENV/bin/python
     ctx.actions.expand_template(
-        template = ctx.file._bin_tmpl,  # FIXME: Should always be single file
-        output = ctx.outputs.executable,
+        template = ctx.file._bin_tmpl_windows if is_windows else ctx.file._bin_tmpl,  # FIXME: Should always be single file
+        output = executable,
         substitutions = {
             "{{BASH_RLOCATION_FN}}": BASH_RLOCATION_FUNCTION.strip(),
             "{{INTERPRETER_FLAGS}}": " ".join(_interpreter_flags(ctx)),
-            "{{VENV}}": to_rlocation_path(ctx, venv_dir),
+            "{{VENV}}": venv_dir.basename if is_windows else to_rlocation_path(ctx, venv_dir),
             "{{DEBUG}}": str(ctx.attr.debug).lower(),
+            "{{MAIN}}": to_rlocation_path(ctx, ctx.file.main),
         },
         is_executable = True,
     )
@@ -240,9 +244,9 @@ def _py_venv_binary_impl(ctx):
     return [
         DefaultInfo(
             files = depset([
-                ctx.outputs.executable,
+                executable,
             ]),
-            executable = ctx.outputs.executable,
+            executable = executable,
             runfiles = rfs,
         ),
         RunEnvironmentInfo(
@@ -299,6 +303,10 @@ A collision can occur when multiple packages providing the same file are install
         allow_single_file = True,
         default = "//py/private/py_venv:entrypoint.tmpl.sh",
     ),
+    "_run_tmpl_windows": attr.label(
+        allow_single_file = True,
+        default = "//py/private/py_venv:entrypoint.tmpl.bat",
+    ),
     "_runfiles_lib": attr.label(
         default = "@bazel_tools//tools/bash/runfiles",
     ),
@@ -308,6 +316,9 @@ A collision can occur when multiple packages providing the same file are install
     ),
     "debug": attr.bool(
         default = False,
+    ),
+    "_windows_constraint": attr.label(
+        default = "@platforms//os:windows",
     ),
     "include_system_site_packages": attr.bool(
         default = False,
@@ -358,6 +369,10 @@ _binary_attrs = dict({
     "_bin_tmpl": attr.label(
         allow_single_file = True,
         default = "//py/private/py_venv:entrypoint.tmpl.sh",
+    ),
+    "_bin_tmpl_windows": attr.label(
+        allow_single_file = True,
+        default = "//py/private/py_venv:entrypoint.tmpl.bat",
     ),
 })
 

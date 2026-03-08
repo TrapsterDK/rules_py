@@ -21,6 +21,9 @@ common --host_per_file_copt=external/.*protobuf.*@--PROTOBUF_WAS_NOT_SUPPOSED_TO
 common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
 common --repo_env=BAZEL_NO_APPLE_CPP_TOOLCHAIN=1
 
+common:windows --action_env=PATH
+common:windows --host_action_env=PATH
+
 common:ci --toolchain_resolution_debug='@@bazel_tools//tools/cpp:toolchain_type'
 
 common:release --build_tag_filters=release

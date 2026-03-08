@@ -13,9 +13,16 @@ bazel_dep(name = "bazel_lib", version = "3.0.0")
 bazel_dep(name = "bazel_skylib", version = "1.4.2")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_python", version = "1.0.0")
+single_version_override(
+    module_name = "rules_python",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:rules_python_dependency_resolver_windows_empty_dir.patch",
+    ],
+)
 bazel_dep(name = "with_cfg.bzl", version = "0.14.1")
 bazel_dep(name = "rules_cc", version = "0.2.16")
-bazel_dep(name = "rules_pkg", version = "1.1.0")
+bazel_dep(name = "rules_pkg", version = "1.1.0", dev_dependency = False)
 bazel_dep(name = "tar.bzl", version = "0.5.5")
 
 bazel_lib_toolchains = use_extension("@tar.bzl//tar:extensions.bzl", "toolchains")
@@ -38,6 +45,8 @@ use_repo(
     "toml2json_aarch64_osx_libsystem",
     "toml2json_x86_64_linux_gnu",
     "toml2json_x86_64_osx_libsystem",
+    "toml2json_x86_64_windows_msvc",
+    "toml2json_aarch64_windows_msvc",
 )
 
 host = use_extension("//uv/private/host:extension.bzl", "host_platform")
@@ -52,17 +61,14 @@ use_repo(tel, "aspect_tools_telemetry_report")
 # Dev deps are the remainder of the file
 
 # LLVM configuration
-bazel_dep(name = "toolchains_llvm_bootstrapped", version = "0.2.5", dev_dependency = IS_RELEASE)
-archive_override(
-    module_name = "toolchains_llvm_bootstrapped",
-    integrity = "sha256-+nddimV34BYO8YExiKLYG2kMoA2Sv+5ZoMRPQLJxNfE=",
-    patch_strip = 1,
-    patches = [
-        "//bazel/patches:llvm_darwin_sysroot.patch",
-    ],
-    strip_prefix = "toolchains_llvm_bootstrapped-121c8419394e76b5652c161369743c564799b2e3",
-    urls = ["https://github.com/cerisier/toolchains_llvm_bootstrapped/archive/121c8419394e76b5652c161369743c564799b2e3/master.tar.gz"],
-)
+bazel_dep(name = "toolchains_llvm_bootstrapped", version = "0.5.9", dev_dependency = IS_RELEASE)
+# single_version_override(
+#     module_name = "toolchains_llvm_bootstrapped",
+#     patch_strip = 1,
+#     patches = [
+#         "//bazel/patches:llvm_darwin_sysroot.patch",
+#     ],
+# )
 
 register_toolchains(
     "@toolchains_llvm_bootstrapped//toolchain:all",
@@ -70,7 +76,7 @@ register_toolchains(
 )
 
 # Rust configuration
-bazel_dep(name = "rules_rust", version = "0.68.1", dev_dependency = IS_RELEASE)
+bazel_dep(name = "rules_rust", version = "0.68.1")
 
 rust = use_extension(
     "@rules_rust//rust:extensions.bzl",
@@ -84,6 +90,8 @@ rust.toolchain(
         "x86_64-apple-darwin",
         "aarch64-unknown-linux-musl",
         "x86_64-unknown-linux-musl",
+        "aarch64-pc-windows-msvc",
+        "x86_64-pc-windows-msvc",
     ],
     versions = ["1.88.0"],
 )
@@ -121,6 +129,8 @@ crate.from_cargo(
         "aarch64-unknown-linux-musl",
         "x86_64-apple-darwin",
         "x86_64-unknown-linux-musl",
+        "aarch64-pc-windows-msvc",
+        "x86_64-pc-windows-msvc",
     ],
 )
 crate.annotation(

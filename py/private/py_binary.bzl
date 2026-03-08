@@ -14,9 +14,16 @@ def _dict_to_exports(env):
         for (k, v) in env.items()
     ]
 
+def _dict_to_windows_exports(env):
+    return [
+        "set \"%s=%s\"" % (k, v)
+        for (k, v) in env.items()
+    ]
+
 def _py_binary_rule_impl(ctx):
     venv_toolchain = ctx.toolchains[VENV_TOOLCHAIN]
     py_toolchain = _py_semantics.resolve_toolchain(ctx)
+    is_windows = ctx.target_platform_has_constraint(ctx.attr._windows_constraint[platform_common.ConstraintValueInfo])
 
     # Resolve our `main=` to a label, which it isn't
     main = _py_semantics.determine_main(ctx)
@@ -29,31 +36,67 @@ def _py_binary_rule_impl(ctx):
     pth_lines.use_param_file("%s", use_always = True)
     pth_lines.set_param_file_format("multiline")
 
-    # The venv is created at the root in the runfiles tree, in 'VENV_NAME', the full path is "${RUNFILES_DIR}/${VENV_NAME}",
-    # but depending on if we are running as the top level binary or a tool, then $RUNFILES_DIR may be absolute or relative.
-    # Paths in the .pth are relative to the site-packages folder where they reside.
-    # All "import" paths from `py_library` start with the workspace name, so we need to go back up the tree for
-    # each segment from site-packages in the venv to the root of the runfiles tree.
-    # Five .. will get us back to the root of the venv:
-    # {name}.runfiles/.{name}.venv/lib/python{version}/site-packages/first_party.pth
-    # If the target is defined with a slash, it adds to the level of nesting
-    target_depth = len(ctx.label.name.split("/")) - 1
-    escape = "/".join(([".."] * (4 + target_depth)))
+    if is_windows:
+        pth_lines.add_all(imports_depset)
+    else:
+        # The venv is created at the root in the runfiles tree, in 'VENV_NAME', the full path is "${RUNFILES_DIR}/${VENV_NAME}",
+        # but depending on if we are running as the top level binary or a tool, then $RUNFILES_DIR may be absolute or relative.
+        # Paths in the .pth are relative to the site-packages folder where they reside.
+        # All "import" paths from `py_library` start with the workspace name, so we need to go back up the tree for
+        # each segment from site-packages in the venv to the root of the runfiles tree.
+        # Five .. will get us back to the root of the venv:
+        # {name}.runfiles/.{name}.venv/lib/python{version}/site-packages/first_party.pth
+        # If the target is defined with a slash, it adds to the level of nesting
+        target_depth = len(ctx.label.name.split("/")) - 1
+        escape = "/".join(([".."] * (4 + target_depth)))
 
-    # A few imports rely on being able to reference the root of the runfiles tree as a Python module,
-    # the common case here being the @rules_python//python/runfiles target that adds the runfiles helper,
-    # which ends up in bazel_tools/tools/python/runfiles/runfiles.py, but there are no imports attrs that hint we
-    # should be adding the root to the PYTHONPATH
-    # Maybe in the future we can opt out of this?
-    pth_lines.add(escape)
+        # A few imports rely on being able to reference the root of the runfiles tree as a Python module,
+        # the common case here being the @rules_python//python/runfiles target that adds the runfiles helper,
+        # which ends up in bazel_tools/tools/python/runfiles/runfiles.py, but there are no imports attrs that hint we
+        # should be adding the root to the PYTHONPATH
+        # Maybe in the future we can opt out of this?
+        pth_lines.add(escape)
 
-    pth_lines.add_all(imports_depset, format_each = "{}/%s".format(escape))
+        pth_lines.add_all(imports_depset, format_each = "{}/%s".format(escape))
 
     site_packages_pth_file = ctx.actions.declare_file("{}.venv.pth".format(ctx.attr.name))
     ctx.actions.write(
         output = site_packages_pth_file,
         content = pth_lines,
     )
+
+    venv_dir = None
+    if is_windows:
+        venv_dir = ctx.actions.declare_directory(".{}.venv".format(ctx.attr.name))
+
+        srcs_depset = _py_library.make_srcs_depset(ctx)
+        action_runfiles = _py_library.make_merged_runfiles(
+            ctx,
+            extra_depsets = [
+                py_toolchain.files,
+                srcs_depset,
+            ] + virtual_resolution.srcs + virtual_resolution.runfiles,
+            extra_runfiles = [
+                site_packages_pth_file,
+            ],
+            extra_runfiles_depsets = [
+                venv_toolchain.default_info.default_runfiles,
+            ],
+        )
+
+        ctx.actions.run(
+            executable = venv_toolchain.bin.bin,
+            arguments = [
+                "--location=" + venv_dir.path,
+                "--pth-file=" + site_packages_pth_file.path,
+                "--bin-dir=" + ctx.bin_dir.path,
+                "--collision-strategy=" + ctx.attr.package_collisions,
+                "--venv-name=.{}.venv".format(ctx.attr.name),
+            ],
+            inputs = action_runfiles.files,
+            outputs = [venv_dir],
+            toolchain = VENV_TOOLCHAIN,
+        )
 
     default_env = {
         "BAZEL_TARGET": str(ctx.label).lstrip("@"),
@@ -69,20 +112,24 @@ def _py_binary_rule_impl(ctx):
             attribute_name = "env",
         )
 
-    executable_launcher = ctx.actions.declare_file(ctx.attr.name)
+    srcs_depset = _py_library.make_srcs_depset(ctx)
+
+    entrypoint_name = to_rlocation_path(ctx, main)
+
+    executable_launcher = ctx.actions.declare_file(ctx.attr.name + ".bat" if is_windows else ctx.attr.name)
     ctx.actions.expand_template(
-        template = ctx.file._run_tmpl,
+        template = ctx.file._run_tmpl_windows if is_windows else ctx.file._run_tmpl,
         output = executable_launcher,
         substitutions = {
             "{{BASH_RLOCATION_FN}}": BASH_RLOCATION_FUNCTION,
             "{{INTERPRETER_FLAGS}}": " ".join(py_toolchain.flags + ctx.attr.interpreter_options),
-            "{{VENV_TOOL}}": to_rlocation_path(ctx, venv_toolchain.bin.bin),
             "{{ARG_COLLISION_STRATEGY}}": ctx.attr.package_collisions,
-            "{{ARG_PYTHON}}": to_rlocation_path(ctx, py_toolchain.python) if py_toolchain.runfiles_interpreter else py_toolchain.python.path,
             "{{ARG_VENV_NAME}}": ".{}.venv".format(ctx.attr.name),
-            "{{ARG_PTH_FILE}}": to_rlocation_path(ctx, site_packages_pth_file),
-            "{{ENTRYPOINT}}": to_rlocation_path(ctx, main),
-            "{{PYTHON_ENV}}": "\n".join(_dict_to_exports(default_env)).strip(),
+            "{{ENTRYPOINT}}": entrypoint_name,
+            "{{VENV}}": venv_dir.basename if is_windows else "",
+            "{{PYTHON_ENV}}": ("\r\n" if is_windows else "\n").join((
+                _dict_to_windows_exports(default_env) if is_windows else _dict_to_exports(default_env)
+            )).strip(),
             "{{EXEC_PYTHON_BIN}}": "python{}".format(
                 py_toolchain.interpreter_version_info.major,
             ),
@@ -90,8 +137,6 @@ def _py_binary_rule_impl(ctx):
         },
         is_executable = True,
     )
-
-    srcs_depset = _py_library.make_srcs_depset(ctx)
 
     runfiles = _py_library.make_merged_runfiles(
         ctx,
@@ -101,7 +146,8 @@ def _py_binary_rule_impl(ctx):
         ] + virtual_resolution.srcs + virtual_resolution.runfiles,
         extra_runfiles = [
             site_packages_pth_file,
-        ],
+        ] + ([venv_dir] if is_windows else [
+        ]),
         extra_runfiles_depsets = [
             ctx.attr._runfiles_lib[DefaultInfo].default_runfiles,
             venv_toolchain.default_info.default_runfiles,
@@ -119,7 +165,7 @@ def _py_binary_rule_impl(ctx):
                 executable_launcher,
                 main,
                 site_packages_pth_file,
-            ]),
+            ] + ([venv_dir] if is_windows else [])),
             executable = executable_launcher,
             runfiles = runfiles,
         ),
@@ -187,8 +233,15 @@ A collision can occur when multiple packages providing the same file are install
         allow_single_file = True,
         default = "//py/private:run.tmpl.sh",
     ),
+    "_run_tmpl_windows": attr.label(
+        allow_single_file = True,
+        default = "//py/private:run.tmpl.bat",
+    ),
     "_runfiles_lib": attr.label(
         default = "@bazel_tools//tools/bash/runfiles",
+    ),
+    "_windows_constraint": attr.label(
+        default = "@platforms//os:windows",
     ),
     # Required for py_version attribute
     "_allowlist_function_transition": attr.label(

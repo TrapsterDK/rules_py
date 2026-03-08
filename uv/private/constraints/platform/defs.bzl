@@ -4,6 +4,13 @@ Helpers & constants.
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
+def select_not_windows():
+    """Helper for selecting on not being windows."""
+    return select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    })
+
 def supported_platform(platform_tag):
     """Predicate.
 
@@ -32,7 +39,8 @@ def supported_platform(platform_tag):
         platform_tag == "any" or
         platform_tag.startswith("macosx_") or
         platform_tag.startswith("manylinux_") or
-        platform_tag.startswith("musllinux_")
+        platform_tag.startswith("musllinux_") or
+        platform_tag.startswith("win")
     )
 
 # Adapted from rules_python's config_settings.bzl

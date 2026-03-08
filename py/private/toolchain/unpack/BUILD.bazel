@@ -2,6 +2,9 @@ load("//py/private/toolchain:tools.bzl", "source_toolchain")
 
 source_toolchain(
     name = "unpack",
-    bin = "//py/tools/unpack_bin",
+    bin = select({
+        "@platforms//os:windows": "//py/tools/windows_tools:unpack",
+        "//conditions:default": "//py/tools/unpack_bin",
+    }),
     toolchain_type = "//py/private/toolchain:unpack_toolchain_type",
 )

@@ -4,6 +4,7 @@ package(default_visibility = ["//py:__subpackages__"])
 
 exports_files(
     [
+        "run.tmpl.bat",
         "run.tmpl.sh",
         "pytest.py.tmpl",
     ],
